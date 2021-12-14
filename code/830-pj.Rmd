@@ -1,0 +1,152 @@
+---
+title: "830-pj"
+author: "Yuqing Zhang"
+date: "2021/8/15"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+```{r, echo=FALSE}
+data <- read.csv("../data/2^4-1_RESULTS.csv")
+data$x1 <- 1 
+data$x1[data$Tile.Size == 0.1] <- -1 
+
+data$x2 <- 1 
+data$x2[data$Match.Score == 80] <- -1 
+
+data$x3 <- 1 
+data$x3[data$Prev.Length == 100] <- -1 
+
+data$x4 <- 1 
+data$x4[data$Prev.Type == 'TT'] <- -1 
+data$y <- data$Browse.Time
+head(data)
+summary(data)
+```
+
+```{r, echo=FALSE}
+model <- lm(y ~ x1*x2*x3*x4, data = data)
+summary(model)
+```
+
+```{r, echo=FALSE}
+# reduced model
+
+red.model <- lm(y ~ x2 + x3 + x4 + x2:x3, data = data)
+summary(red.model)
+
+anova(model, red.model)
+# this reduced model fits as well as the full one
+```
+
+
+
+```{r, echo=FALSE}
+library(gplots)
+
+par(mfrow = c(1,2))
+# [1] "Prev.Length" "Match.Score" "Tile.Size"   "Prev.Type"  
+# [5] "Browse.Time"
+
+names(data)
+boxplot(Browse.Time ~ Tile.Size, data = data, 
+        main = "Boxplot of Browse Time by Tile Size", 
+        xlab = "Tile Size", ylab = "Browse.Time (min)", 
+        ylim = c(12,27))
+
+plotmeans(Browse.Time ~ Tile.Size, data = data, 
+          main = "Main Effect Plot for Tile Size", 
+          xlab = "Tile Size", 
+          ylab = "Mean Browse Time (min)", 
+          pch = 16, ylim = c(12,27), mean.labels = TRUE)
+
+boxplot(Browse.Time ~ Match.Score, data = data, 
+        main = "Boxplot of Browse Time by Match.Score", 
+        xlab = "Match.Score", ylab = "Browse.Time (min)", 
+        ylim = c(12,27))
+
+plotmeans(Browse.Time ~ Match.Score, data = data, 
+          main = "Main Effect Plot for Match.Score", 
+          xlab = "Match.Score", 
+          ylab = "Mean Browse Time (min)", 
+          pch = 16, ylim = c(12,27), mean.labels = TRUE)
+
+boxplot(Browse.Time ~ Prev.Length, data = data, 
+        main = "Boxplot of Browse Time by Prev.Length", 
+        xlab = "Prev.Length", ylab = "Browse.Time (min)", 
+        ylim = c(12,27))
+
+plotmeans(Browse.Time ~ Prev.Length, data = data, 
+          main = "Main Effect Plot for Prev.Length", 
+          xlab = "Prev.Length", 
+          ylab = "Mean Browse Time (min)", 
+          pch = 16, ylim = c(12,27), mean.labels = TRUE)
+
+boxplot(Browse.Time ~ Prev.Type, data = data, 
+        main = "Boxplot of Browse Time by Prev.Type", 
+        xlab = "Prev.Type", ylab = "Browse.Time (min)", 
+        ylim = c(12,27))
+
+plotmeans(Browse.Time ~  Prev.Type, data = data, 
+          main = "Main Effect Plot for Prev.Type", 
+          xlab = "Prev.Type", 
+          ylab = "Mean Browse Time (min)", 
+          pch = 16, ylim = c(12,27), mean.labels = TRUE)
+```
+
+```{r, fig.height=8, warning = FALSE}
+par(mfrow = c(2,2))
+
+plotmeans(Browse.Time ~ Tile.Size, data = data, 
+          main = "Main Effect Plot - Tile Size", 
+          xlab = "Tile Size", 
+          ylab = "Mean Browse Time (min)", 
+          pch = 16, ylim = c(12,27), mean.labels = TRUE)
+
+plotmeans(Browse.Time ~ Match.Score, data = data, 
+          main = "Main Effect Plot - Match.Score", 
+          xlab = "Match.Score", 
+          ylab = "Mean Browse Time (min)", 
+          pch = 16, ylim = c(12,27), mean.labels = TRUE)
+
+plotmeans(Browse.Time ~ Prev.Length, data = data, 
+          main = "Main Effect Plot - Prev.Length", 
+          xlab = "Prev.Length", 
+          ylab = "Mean Browse Time (min)", 
+          pch = 16, ylim = c(12,27), mean.labels = TRUE)
+
+plotmeans(Browse.Time ~  Prev.Type, data = data, 
+          main = "Main Effect Plot - Prev.Type", 
+          xlab = "Prev.Type", 
+          ylab = "Mean Browse Time (min)", 
+          pch = 16, ylim = c(12,27), mean.labels = TRUE)
+```
+
+```{r}
+data_ffd <- read.csv("../data/2^4-1_RESULTS.csv")
+data_ffd$x1 <- 1 
+data_ffd$x1[data_ffd$Tile.Size == 0.1] <- -1 
+
+data_ffd$x2 <- 1 
+data_ffd$x2[data_ffd$Match.Score == 80] <- -1 
+
+data_ffd$x3 <- 1 
+data_ffd$x3[data_ffd$Prev.Length == 100] <- -1 
+
+data_ffd$x4 <- 1 
+data_ffd$x4[data_ffd$Prev.Type == 'TT'] <- -1 
+
+data_ffd$y <- data_ffd$Browse.Time
+head(data_ffd)
+summary(data_ffd)
+```
+
+```{r}
+model.ffd <- lm(y ~ (x1+x2+x3+x4)^4, data = data_ffd)
+summary(model.ffd)
+```
+
+x2 x3 x4 are significant 

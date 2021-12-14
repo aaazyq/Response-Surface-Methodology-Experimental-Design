@@ -1,0 +1,485 @@
+---
+title: "830-PHASE3-TT"
+author: "Yuqing Zhang"
+date: "2021/8/16"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+TT:
+
+second time:
+Prev.Length	Match.Score	Prev.Type
+95	77	TT
+75	77	TT
+95	67	TT
+75	67	TT
+85	72	TT
+
+```{r}
+convert.C.to.N(x = c(-1,-1,1,1,0,1.4,-1.4,0,0), UH = 95, UL = 75)
+convert.C.to.N(x = c(-1,1,-1,1,0,0,0,1.4,-1.4), UH = 82, UL = 62)
+```
+
+
+
+Prev.Length	Match.Score	Prev.Type
+75	67	TT
+75	77	TT
+95	67	TT
+95	77	TT
+85	72	TT
+95	72	TT
+75	72	TT
+85	77	TT
+85	67	TT
+
+Prev.Length	Match.Score	Prev.Type
+75	62	TT
+75	82	TT
+95	62	TT
+95	82	TT
+85	72	TT
+100	72	TT
+70	72	TT
+85	86	TT
+85	58	TT
+
+
+
+```{r}
+P3.TT <- read.csv("../data/P3-TT-4.csv", header = TRUE)
+P3.TT$x1 <- convert.N.to.C(P3.TT$Prev.Length, UH = 95, UL = 75)
+P3.TT$x2 <- convert.N.to.C(P3.TT$Match.Score, UH = 82, UL = 62)
+P3.TT$y <- P3.TT$Browse.Time
+
+model <- lm(y ~ x1 + x2 + x1*x2 + I(x1^2) + I(x2^2), data = P3.TT)
+
+summary(model)
+
+beta0 <- coef(model)[1]
+beta1 <- coef(model)[2]
+beta2 <- coef(model)[3]
+beta12 <- coef(model)[6]
+beta11 <- coef(model)[4]
+beta22 <- coef(model)[5]
+grd <- mesh(x = seq(convert.N.to.C(U = 30, UH = 95, UL = 75), 
+                    convert.N.to.C(U = 120, UH = 95, UL = 75), 
+                    length.out = 100), 
+            y = seq(convert.N.to.C(U = 0, UH = 82, UL = 62), 
+                    convert.N.to.C(U = 100, UH = 82, UL = 62), 
+                    length.out = 100))
+x1 <- grd$x
+x2 <- grd$y
+eta.so <- beta0 + beta1*x1 + beta2*x2 + beta12*x1*x2 + beta11*x1^2 + beta22*x2^2
+```
+
+```{r}
+# 2D contour plot (coded units)
+contour(x = seq(convert.N.to.C(U = 30, UH = 95, UL = 75), 
+                    convert.N.to.C(U = 120, UH = 95, UL = 75), 
+                    length.out = 100), 
+            y = seq(convert.N.to.C(U = 0, UH = 82, UL = 62), 
+                    convert.N.to.C(U = 100, UH = 82, UL = 62), 
+                    length.out = 100), 
+        z = eta.so, xlab = "x1", ylab = "x2",
+        nlevels = 20, col = blue_palette(20), labcex = 0.9)
+
+b <- matrix(c(beta1,beta2), ncol = 1)
+B <- matrix(c(beta11, 0.5*beta12, 0.5*beta12, beta22), nrow = 2, ncol = 2)
+x.s <- -0.5*solve(B) %*% b 
+points(x = x.s[1], y = x.s[2], col = "red", pch = 16)
+```
+
+```{r}
+# The predicted book rate at this configuration is:
+eta.s <- beta0 + 0.5*t(x.s) %*% b
+
+# In natural units this optimum is located at
+convert.C.to.N(x = x.s[1,1], UH = 95, UL = 75)
+convert.C.to.N(x = x.s[2,1], UH = 82, UL = 62)
+
+```
+
+```{r}
+# 70, 73
+convert.N.to.C(70, UH = 95, UL = 75)
+convert.N.to.C(77, UH = 82, UL = 62)
+```
+
+```{r}
+# 75, 76
+convert.N.to.C(75, UH = 95, UL = 75)
+convert.N.to.C(76, UH = 82, UL = 62)
+```
+
+```{r}
+# Remake the contour plot but in natural units
+contour(x = seq(30, 120, length.out = 100), 
+        y = seq(0, 100, length.out = 100), 
+        z = eta.so, xlab = "Prev Length", ylab = "Matching Score",
+        nlevels = 20, col = blue_palette(20), labcex = 0.9)
+
+points(x = convert.C.to.N(x = x.s[1,1], UH = 95, UL = 75),
+       y = convert.C.to.N(x = x.s[2,1], UH = 82, UL = 62), 
+       col = "red", pch = 16)
+
+points(x = 70,
+       y = 77, 
+       col = "green", pch = 16)
+```
+
+```{r}
+## 95% prediction interval at this optimum:
+n.data <- data.frame(x1=x.s[1,1], x2=x.s[2,1])
+pred <- predict(model, newdata = n.data, type = "response", se.fit = TRUE)
+pred 
+print(paste("Prediction: ", pred$fit, sep = ""))
+print(paste("95% Prediction interval: (", pred$fit-qnorm(0.975)*pred$se.fit, ",", pred$fit+qnorm(0.975)*pred$se.fit, ")", sep = ""))
+
+## 95% prediction interval at convenient near-optimum:
+n.data <- data.frame(x1=-1.5, x2=0.5)
+pred <- predict(model, newdata = n.data, type = "response", se.fit = TRUE)
+pred
+print(paste("Prediction: ", pred$fit, sep = ""))
+print(paste("95% Prediction interval: (", pred$fit-qnorm(0.975)*pred$se.fit, ",", pred$fit+qnorm(0.975)*pred$se.fit, ")", sep = ""))
+
+## 95% prediction interval at convenient near-optimum:
+n.data <- data.frame(x1=-1, x2=0.4)
+pred <- predict(model, newdata = n.data, type = "response", se.fit = TRUE)
+pred
+print(paste("Prediction: ", pred$fit, sep = ""))
+print(paste("95% Prediction interval: (", pred$fit-qnorm(0.975)*pred$se.fit, ",", pred$fit+qnorm(0.975)*pred$se.fit, ")", sep = ""))
+
+```
+
+# confirmation
+
+```{r}
+data.p4.TT <- read.csv("../data/P4-TT-9-2.csv")
+
+x1_list <- c(65, 70, 75)
+x2_list <- c(76, 77, 78)
+
+for (x1 in x1_list){
+        for(x2 in x2_list){
+                print(c(x1,x2, 
+                      mean(data.p4.TT[data.p4.TT$Prev.Length == x1 & data.p4.TT$Match.Score == x2, 'Browse.Time'])))
+        }
+}
+```
+
+```{r}
+P3.TT$intercept <- 1
+P3.TT$x1 <- convert.N.to.C(P3.TT$Prev.Length, UH = 95, UL = 75)
+P3.TT$x2 <- convert.N.to.C(P3.TT$Match.Score, UH = 82, UL = 62)
+P3.TT$y <- P3.TT$Browse.Time
+P3.TT$x1x2 <- P3.TT$x1 * P3.TT$x2
+P3.TT$x1_2 <- P3.TT$x1 ^2
+P3.TT$x2_2 <- P3.TT$x2 ^2
+X <- P3.TT[,c('intercept', 'x1','x2','x1x2','x1_2','x2_2')]
+
+
+
+P4.TT <- data.p4.TT
+P4.TT$intercept <- 1
+P4.TT$x1 <- convert.N.to.C(P4.TT$Prev.Length, UH = 95, UL = 75)
+P4.TT$x2 <- convert.N.to.C(P4.TT$Match.Score, UH = 82, UL = 62)
+P4.TT$y <- P4.TT$Browse.Time
+P4.TT$x1x2 <- P4.TT$x1 * P4.TT$x2
+P4.TT$x1_2 <- P4.TT$x1 ^2
+P4.TT$x2_2 <- P4.TT$x2 ^2
+
+P4.TT.copy <- P4.TT
+P4.TT <- P4.TT[,c('intercept', 'x1','x2','x1x2','x1_2','x2_2')]
+
+k <- 2
+model <- lm(y ~ x1 + x2 + x1*x2 + I(x1^2) + I(x2^2), data = P3.TT)
+
+unique(P4.TT$x1)
+unique(P4.TT$x2)
+
+x <- data.frame(intercept = rep(1, 9), 
+        x1 = c(-1.5, -1, -2, -1.5, -1, -2, -1.5, -1, -2),
+           x2 = c(0.4, 0.4, 0.4, 0.5, 0.5,0.5, 0.6,  0.6, 0.6))
+x$x1_2 <- x$x1 ^ 2
+x$x2_2 <- x$x2 ^ 2
+x$x12 <- x$x1 * x$x2
+x.df <- x
+x <- as.matrix(x)
+
+y <- data.frame(
+y1 = P4.TT.copy[P4.TT.copy$x1 == -1.5 &
+                   P4.TT.copy$x2 == 0.4,
+           "Browse.Time"],
+y2 = P4.TT.copy[P4.TT.copy$x1 == -1 &
+                   P4.TT.copy$x2 == 0.4,
+           "Browse.Time"],
+y3 = P4.TT.copy[P4.TT.copy$x1 == -2 &
+                   P4.TT.copy$x2 == 0.4,
+           "Browse.Time"],
+y4 = P4.TT.copy[P4.TT.copy$x1 == -1.5 &
+                   P4.TT.copy$x2 == 0.5,
+           "Browse.Time"],
+y5 = P4.TT.copy[P4.TT.copy$x1 == -1 &
+                   P4.TT.copy$x2 == 0.5,
+           "Browse.Time"],
+y6 = P4.TT.copy[P4.TT.copy$x1 == -2 &
+                   P4.TT.copy$x2 == 0.5,
+           "Browse.Time"],
+y7 = P4.TT.copy[P4.TT.copy$x1 == -1.5 &
+                   P4.TT.copy$x2 == 0.6,
+           "Browse.Time"],
+y8 = P4.TT.copy[P4.TT.copy$x1 == -1 &
+                   P4.TT.copy$x2 == 0.6,
+           "Browse.Time"],
+y9 = P4.TT.copy[P4.TT.copy$x1 == -2 &
+                   P4.TT.copy$x2 == 0.6,
+           "Browse.Time"]
+)
+   
+       
+y.c <- t(as.matrix(y))
+delta <- 0.02*pred$fit
+CI = TRUE
+direction = "less"
+```
+
+```{r}
+# Function that calculates the probability of agreement
+prob.agree <- function(X, k, model, x, y.c, delta, CI){
+## Inputs:
+## X = The design matrix from the original experiment with columns
+## corresponding to each effect that was estimated (intercept, main
+## effects, interactions, and quadratics).
+## k = The number of factors being considered.
+## model = An lm() object corresponding to the RS as estimated by the
+## original experiment.
+## x = The 'row' of X corresponding to the point in the factor space at
+## which the confirmation runs are being compared to the RS. If one
+## point is considered this is a row vector, if several points are
+## consider x is a matrix with as many rows. Columns are ordered as
+## main effects, quadratic effects and interaction effects
+## (subscripts ascending). The units here must match the units of X
+## (i.e, coded +/-1 vs natural).
+## y.c = A matrix whose entries correspond to the confirmation
+## observations at the point x. Rows correspond to location and
+## columns correspond to repeats.
+##delta = The interval (-delta, delta) represents the range of differences
+## between RS estimates that are deemed to be of no practical
+## importance. This may be a vector if more than one location is
+## considered.
+## CI = A logical indicating whether a confidence interval is to be
+## calculated
+##
+## Outputs:
+##Theta = Estimate(s) of the probability of agreement at the confirmation
+## location(s).
+## LCL = Lower 95% confidence limits for the probability of agreement at
+## the confirmation location(s).
+# Preparing the estimates associated with the original experiment
+if(is.null(dim(x))){
+n.l <- 1
+}else{
+n.l <- dim(x)[1]
+}
+theta <- rep(0, n.l)
+lcl <- rep(0, n.l)
+for(j in 1:n.l){
+if(n.l == 1){
+u <- matrix(x, nrow = 1)
+y <- y.c
+}else if(n.l > 1){
+u <- matrix(x[j,], nrow = 1)
+y <- y.c[j,]
+}
+beta <- model$coefficients # beta vector for original model
+vc <- vcov(model) # covariance matrix for the beta vector
+mu <- u %*% beta # this is predicted response at the confirmation
+#location
+sig2 <- as.numeric(summary(model)['sigma'])^2 # estimate of error
+#variance in original model
+vyhat <- sig2 * (u %*% solve(t(X) %*% X) %*% t(u))
+
+# Preparing the estimates associated with the confirmation runs
+mu.c <- mean(y)
+n.c <- length(y)
+if(n.c == 1){# single confirmation run
+sig2.c <- sig2
+}else if(n.c > 1){
+sig2.c <- var(y) # estimate of error variance in confirmation runs
+}
+vyhat.c <- sig2.c / n.c
+# Calculate the probability of agreement
+theta[j] <- pnorm((delta[j] - (mu.c - mu))/sqrt(vyhat.c + vyhat)) -
+pnorm((-delta[j] - (mu.c - mu))/sqrt(vyhat.c + vyhat))
+if(CI == TRUE){
+# Calculate the lower confidence limit via bootstrapping
+library(mvtnorm)
+B <- 100000
+beta.boot <- rmvnorm(n = B, mean = beta, sigma = vc)
+mu.boot <- u %*% t(beta.boot)
+sig2.boot <- sig2 * rchisq(n = B, df = model$df.residual) /
+model$df.residual
+vyhat.boot <- sig2.boot * (u %*% solve(t(X) %*% X) %*% t(u))
+mu.c.boot <- rnorm(n = B, mean = mu.c, sd = sqrt(sig2.c))
+if(n.c == 1){
+sig2.c.boot <- sig2.boot
+}else if(n.c > 1){
+sig2.c.boot <- sig2.c * rchisq(n = B, df = (n.c-1)) / (n.c-1)
+}
+vyhat.c.boot <- sig2.c.boot / n.c
+theta.boot <- rep(0, B)
+for(i in 1:B){
+theta.boot[i] <- pnorm((delta[j] - (mu.c.boot[i] -
+mu.boot[i]))/sqrt(vyhat.c.boot[i] + vyhat.boot[i])) - pnorm((-
+delta[j] - (mu.c.boot[i] - mu.boot[i]))/sqrt(vyhat.c.boot[i] +
+vyhat.boot[i]))
+}
+lcl[j] <- as.numeric(quantile(theta.boot, 0.05))
+}
+}
+if(CI == TRUE){
+return(list(Theta = theta, LCL = lcl))
+}else{
+return(list(Theta = theta))
+}
+}
+
+# Function that calculates the commensurate probability
+prob.comm <- function(X, k, model, x, y.c, delta, direction, CI){
+## Inputs:
+## X = The design matrix from the original experiment with columns
+## corresponding to each effect that was estimated (intercept, main
+## effects, interactions, and quadratics).
+## k = The number of factors being considered.
+## model = An lm() object corresponding to the RS as estimated by the
+## original experiment.
+## x = The 'row' of X corresponding to the point in the factor space at
+## which the confirmation runs are being compared to the RS. If one
+## point is considered this is a row vector, if several points are
+## consider x is a matrix with as many rows. Columns are ordered as
+## main effects, quadratic effects and interaction effects
+## (subscripts ascending). The units here must match the units of X
+## (i.e, coded +/-1 vs natural).
+## y.c = A matrix whose entries correspond to the confirmation
+## observations at the point x. Rows correspond to location and
+## columns correspond to repeats.
+##delta = The interval (-delta, delta) represents the range of differences
+## between RS estimates that are deemed to be of no practical
+## importance. This may be a vector if more than one location is
+## considered.
+##direction = Either "greater" or "less" indicating the direction of the
+## inequality in the definition of the commensurate probability.
+## For maximization use "greater", for minimization use "less".
+## CI = A logical indicating whether a confidence interval is to be
+## calculated
+##
+## Outputs:
+##Theta = Estimate(s) of the commensurate probability at the confirmation
+## location(s).
+## LCL = Lower 95% confidence limits for the commensurate probability at
+## the confirmation location(s).
+# Preparing the estimates associated with the original experiment
+if(is.null(dim(x))){
+n.l <- 1
+}else{
+n.l <- dim(x)[1]
+}
+theta <- rep(0, n.l)
+lcl <- rep(0, n.l)
+for(j in 1:n.l){
+if(n.l == 1){
+u <- matrix(x, nrow = 1)
+y <- y.c
+}else if(n.l > 1){
+u <- matrix(x[j,], nrow = 1)
+y <- y.c[j,]
+}
+beta <- model$coefficients # beta vector for original model
+vc <- vcov(model) # covariance matrix for the beta vector
+mu <- u %*% beta # this is predicted response at the confirmation
+#location
+sig2 <- as.numeric(summary(model)['sigma'])^2 # estimate of error
+#variance in original model
+vyhat <- sig2 * (u %*% solve(t(X) %*% X) %*% t(u))
+# Preparing the estimates associated with the confirmation runs
+mu.c <- mean(y)
+n.c <- length(y)
+if(n.c == 1){# single confirmation run
+sig2.c <- sig2
+}else if(n.c > 1){
+sig2.c <- var(y) # estimate of error variance in confirmation runs
+}
+vyhat.c <- sig2.c / n.c
+# Calculate the commensurate probability
+if(direction == "greater"){
+theta[j] <- 1 - pnorm((-delta[j] - (mu.c - mu))/sqrt(vyhat.c + vyhat))
+}else if(direction == "less"){
+theta[j] <- pnorm((delta[j] - (mu.c - mu))/sqrt(vyhat.c + vyhat))
+}
+if(CI == TRUE){
+# Calculate the lower confidence limit via bootstrapping
+library(mvtnorm)
+B <- 100000
+beta.boot <- rmvnorm(n = B, mean = beta, sigma = vc)
+mu.boot <- u %*% t(beta.boot)
+sig2.boot <- sig2 * rchisq(n = B, df = model$df.residual) /
+model$df.residual
+vyhat.boot <- sig2.boot * (u %*% solve(t(X) %*% X) %*% t(u))
+mu.c.boot <- rnorm(n = B, mean = mu.c, sd = sqrt(sig2.c))
+if(n.c == 1){
+sig2.c.boot <- sig2.boot
+}else if(n.c > 1){
+sig2.c.boot <- sig2.c * rchisq(n = B, df = (n.c-1)) / (n.c-1)
+}
+vyhat.c.boot <- sig2.c.boot / n.c
+theta.boot <- rep(0, B)
+if(direction == "greater"){
+for(i in 1:B){
+theta.boot[i] <- 1 - pnorm((-delta[j] - (mu.c.boot[i] -
+mu.boot[i]))/sqrt(vyhat.c.boot[i] + vyhat.boot[i]))
+}
+}else if(direction == "less"){
+for(i in 1:B){
+theta.boot[i] <- pnorm((delta[j] - (mu.c.boot[i] -
+mu.boot[i]))/sqrt(vyhat.c.boot[i] + vyhat.boot[i]))
+}
+}
+lcl[j] <- as.numeric(quantile(theta.boot, 0.05))
+}
+}
+if(CI == TRUE){
+return(list(Theta = theta, LCL = lcl))
+}else{
+return(list(Theta = theta))
+}
+}
+```
+
+```{r, warning=FALSE}
+X <- as.matrix(X)
+x.df$prob <- 0
+x.df$prob.c <- 0
+for (condi in 1:9){
+        res <- prob.agree(X, k, model, x[condi,], y.c[condi,], delta, CI)
+        x.df[condi, "prob"] <- res$Theta
+        res.c <- prob.comm(X, k, model, x[condi,], y.c[condi,], delta, direction, CI)
+        x.df[condi, "prob.c"] <- res.c$Theta
+        # print(res)
+        }
+```
+
+```{r}
+mean(y$y4)
+```
+
+```{r}
+x.df$x1.n <- convert.C.to.N(x.df$x1, UH = 95, UL = 75)
+x.df$x2.n <- convert.C.to.N(x.df$x2, UH = 82, UL = 62)
+
+```
+

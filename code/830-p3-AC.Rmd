@@ -1,0 +1,139 @@
+---
+title: "830-PHASE3-AC"
+author: "Yuqing Zhang"
+date: "2021/8/16"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+90-70
+80,100 - 65,85
+
+
+Prev.Length	Match.Score	Prev.Type
+80	60	AC
+100	60	AC
+80	80	AC
+100	80	AC
+90	70	AC
+
+85-71
+75,95-62,82
+
+!!!! again
+Prev.Length	Match.Score	Prev.Type
+90	58	AC
+90	78	AC
+70	58	AC
+70	78	AC
+80	68	AC
+
+```{r}
+UH1 = 90
+UL1 = 70
+UH2 = 78
+UL2 = 58
+        
+
+convert.C.to.N(x = c(-1,-1,1,1,0,1.4,-1.4,0,0), UH = UH1, UL = UL1)
+convert.C.to.N(x = c(-1,1,-1,1,0,0,0,1.4,-1.4), UH = UH2, UL = UL2)
+```
+
+
+```{r}
+P3.AC <- read.csv("../data/P3-AC-4.csv", header = TRUE)
+P3.AC$x1 <- convert.N.to.C(P3.AC$Prev.Length, UH = UH1, UL = UL1)
+P3.AC$x2 <- convert.N.to.C(P3.AC$Match.Score, UH = UH2, UL = UL2)
+P3.AC$y <- P3.AC$Browse.Time 
+
+model <- lm(y ~ x1 + x2 + x1*x2 + I(x1^2) + I(x2^2), data = P3.AC)
+
+summary(model)
+
+beta0 <- coef(model)[1]
+beta1 <- coef(model)[2]
+beta2 <- coef(model)[3]
+beta12 <- coef(model)[6]
+beta11 <- coef(model)[4]
+beta22 <- coef(model)[5]
+grd <- mesh(x = seq(convert.N.to.C(U = 30, UH = UH1, UL = UL1), 
+                    convert.N.to.C(U = 120, UH = UH1, UL = UL1), 
+                    length.out = 100), 
+            y = seq(convert.N.to.C(U = 0, UH = UH2, UL = UL2), 
+                    convert.N.to.C(U = 100, UH = UH2, UL = UL2), 
+                    length.out = 100))
+x1 <- grd$x
+x2 <- grd$y
+eta.so <- beta0 + beta1*x1 + beta2*x2 + beta12*x1*x2 + beta11*x1^2 + beta22*x2^2
+```
+
+```{r}
+# 2D contour plot (coded units)
+contour(x = seq(convert.N.to.C(U = 30, UH = UH1, UL = UL1), 
+                    convert.N.to.C(U = 120, UH = UH1, UL = UL1), 
+                    length.out = 100), 
+            y = seq(convert.N.to.C(U = 0, UH = UH2, UL = UL2), 
+                    convert.N.to.C(U = 100, UH = UH2, UL = UL2), 
+                    length.out = 100), 
+        z = eta.so, xlab = "x1", ylab = "x2",
+        nlevels = 20, col = blue_palette(20), labcex = 0.9)
+
+b <- matrix(c(beta1,beta2), ncol = 1)
+B <- matrix(c(beta11, 0.5*beta12, 0.5*beta12, beta22), nrow = 2, ncol = 2)
+x.s <- -0.5*solve(B) %*% b 
+points(x = x.s[1], y = x.s[2], col = "red", pch = 16)
+```
+
+```{r}
+# The predicted book rate at this configuration is:
+eta.s <- beta0 + 0.5*t(x.s) %*% b
+
+# In natural units this optimum is located at
+convert.C.to.N(x = x.s[1,1], UH = UH1, UL = UL1)
+convert.C.to.N(x = x.s[2,1], UH = UH2, UL = UL2)
+
+```
+
+```{r}
+# 65, 76
+convert.N.to.C(75, UH = UH1, UL = UL1)
+convert.N.to.C(73, UH = UH2, UL = UL2)
+```
+
+
+```{r}
+# Remake the contour plot but in natural units
+contour(x = seq(30, 120, length.out = 100), 
+        y = seq(0, 100, length.out = 100), 
+        z = eta.so, xlab = "Prev Length", ylab = "Matching Score",
+        nlevels = 20, col = blue_palette(20), labcex = 0.9)
+
+points(x = convert.C.to.N(x = x.s[1,1], UH = UH1, UL = UL1),
+       y = convert.C.to.N(x = x.s[2,1], UH = UH2, UL = UL2), 
+       col = "red", pch = 16)
+
+points(x = 75,
+       y = 73, 
+       col = "green", pch = 16)
+```
+
+```{r}
+## UH1% prediction interval at this optimum:
+n.data <- data.frame(x1=x.s[1,1], x2=x.s[2,1])
+pred <- predict(model, newdata = n.data, type = "response", se.fit = TRUE)
+pred 
+print(paste("Prediction: ", pred$fit, sep = ""))
+print(paste("95% Prediction interval: (", pred$fit-qnorm(0.975)*pred$se.fit, ",", pred$fit+qnorm(0.975)*pred$se.fit, ")", sep = ""))
+
+## UH1% prediction interval at convenient near-optimum:
+n.data <- data.frame(x1=-0.7, x2=0.5)
+pred <- predict(model, newdata = n.data, type = "response", se.fit = TRUE)
+pred
+print(paste("Prediction: ", pred$fit, sep = ""))
+print(paste("95% Prediction interval: (", pred$fit-qnorm(0.975)*pred$se.fit, ",", pred$fit+qnorm(0.975)*pred$se.fit, ")", sep = ""))
+
+```
+

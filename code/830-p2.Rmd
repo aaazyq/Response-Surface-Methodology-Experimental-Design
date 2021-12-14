@@ -1,0 +1,520 @@
+---
+title: "830-pj-phase2"
+author: "Yuqing Zhang"
+date: "2021/8/15"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+blue_palette <- colorRampPalette(
+  c(rgb(247,251,255,maxColorValue = 255), 
+    rgb(8,48,107,maxColorValue = 255)))
+# Function for converting from natural units to coded units
+convert.N.to.C <- function(U,UH,UL){
+  x <- (U - (UH+UL)/2) / ((UH-UL)/2)
+  return(x)
+}
+
+# Function for converting from coded units to natural units
+convert.C.to.N <- function(x,UH,UL){
+  U <- x*((UH-UL)/2) + (UH+UL)/2
+  return(U)
+}
+
+# Function to create x and y grids for contour plots 
+mesh <- function(x, y) { 
+  Nx <- length(x)
+  Ny <- length(y)
+  list(
+    x = matrix(nrow = Nx, ncol = Ny, data = x),
+    y = matrix(nrow = Nx, ncol = Ny, data = y, byrow = TRUE)
+  )
+}
+```
+
+```{r}
+data_p2 <- read.csv("../data/P2-phase1.csv")
+table(data_p2$Prev.Length, data_p2$Match.Score, data_p2$Prev.Type)
+data_p2_TT <- data_p2[data_p2$Prev.Type == "TT",]
+data_p2_AC <- data_p2[data_p2$Prev.Type == "AC",]
+
+data_p2_AC
+```
+
+X1: Prev.Length 100 120
+
+X2: Match.Score 80 100
+
+```{r}
+coded_data_p2_TT <- data.frame(y = data_p2_TT$Browse.Time,
+                  x1 = convert.N.to.C(U = data_p2_TT$Prev.Length, 
+                                      UH = 120, UL = 100),
+                  x2 = convert.N.to.C(U = data_p2_TT$Match.Score, 
+                                      UH = 100, UL = 80))
+coded_data_p2_TT$xPQ <- (coded_data_p2_TT$x1^2 + coded_data_p2_TT$x2^2)/2
+
+aggregate(coded_data_p2_TT$y, 
+          by = list(x1 = coded_data_p2_TT$x1, x2 = coded_data_p2_TT$x2), 
+          FUN = mean)
+
+```
+
+```{r}
+mean(coded_data_p2_TT$y[coded_data_p2_TT$xPQ != 0]) - mean(coded_data_p2_TT$y[coded_data_p2_TT$xPQ == 0])
+```
+
+```{r}
+m_TT <- lm(y~x1+x2+x1*x2+xPQ, data = coded_data_p2_TT)
+summary(m_TT)
+```
+
+```{r}
+m.TT.fo <- lm(y~x1+x2, data = coded_data_p2_TT)
+beta0 <- coef(m.TT.fo)[1]
+beta1 <- coef(m.TT.fo)[2]
+beta2 <- coef(m.TT.fo)[3]
+grd <- mesh(x = seq(convert.N.to.C(U = 30, UH = 120, UL = 100), 
+                    convert.N.to.C(U = 120, UH = 120, UL = 100), 
+                    length.out = 100), 
+            y = seq(convert.N.to.C(U = 0, UH = 100, UL = 80), 
+                    convert.N.to.C(U = 100, UH = 100, UL = 80), 
+                    length.out = 100))
+x1 <- grd$x
+x2 <- grd$y
+eta.fo <- beta0 + beta1*x1 + beta2*x2
+# 2D contour plot
+contour(x = seq(convert.N.to.C(U = 30, UH = 120, UL = 100), 
+                convert.N.to.C(U = 120, UH = 120, UL = 100), 
+                length.out = 100),
+        y = seq(convert.N.to.C(U = 0, UH = 100, UL = 80), 
+                convert.N.to.C(U = 100, UH = 100, UL = 80), 
+                length.out = 100), 
+        z = eta.fo, xlab = "x1 (Preview Length)", ylab = "x2 (Match.Score)",
+        nlevels = 15, col = blue_palette(15), labcex = 0.9, asp=1)
+
+abline(a = 0, b = beta2/beta1, lty = 2)
+points(x = 0, y = 0, col = "red", pch = 16)
+```
+
+```{r}
+# The gradient vector
+g <- matrix(c(beta1, beta2), nrow = 1)
+g
+# We will take steps of size 5 seconds in preview length. In coded units this is
+PL.step <- convert.N.to.C(U = 110 + 5, UH = 120, UL = 100)
+lambda <- PL.step/abs(beta1)
+```
+
+
+```{r}
+contour(x = seq(convert.N.to.C(U = 30, UH = 120, UL = 100), 
+                convert.N.to.C(U = 120, UH = 120, UL = 100), 
+                length.out = 100),
+        y = seq(convert.N.to.C(U = 0, UH = 100, UL = 80), 
+                convert.N.to.C(U = 100, UH = 100, UL = 80), 
+                length.out = 100), 
+        z = eta.fo, xlab = "x1 (Preview Length)", ylab = "x2 (Match.Score)",
+        nlevels = 15, col = blue_palette(15), labcex = 0.9, asp=1)
+
+abline(a = 0, b = beta2/beta1, lty = 2)
+points(x = 0, y = 0, col = "red", pch = 16)
+
+## Step 0: The center point we've already observed
+x.old <- matrix(0, nrow=1, ncol=2)
+text(x = 0, y = 0+0.25, labels = "0")
+step0 <- data.frame(Prev.Length = convert.C.to.N(x = 0, UH = 120, UL = 100), 
+                 Match.Score = convert.C.to.N(x = 0, UH = 100, UL = 80))
+
+## Step 1: 
+x.new <- x.old - lambda*g
+points(x = x.new[1,1], y = x.new[1,2], col = "red", pch = 16)
+text(x = x.new[1,1], y = x.new[1,2]+0.25, labels = "1")
+step1 <- data.frame(Prev.Length = convert.C.to.N(x = x.new[1,1], UH = 120, UL = 100), 
+                    Match.Score = convert.C.to.N(x = x.new[1,2], UH = 100, UL = 80))
+
+## Step 2: 
+x.old <- x.new
+x.new <- x.old - lambda*g
+points(x = x.new[1,1], y = x.new[1,2], col = "red", pch = 16)
+text(x = x.new[1,1], y = x.new[1,2]+0.25, labels = "2")
+step2 <- data.frame(Prev.Length = convert.C.to.N(x = x.new[1,1], UH = 120, UL = 100), 
+                    Match.Score = convert.C.to.N(x = x.new[1,2], UH = 100, UL = 80))
+
+## Step 3: 
+x.old <- x.new
+x.new <- x.old - lambda*g
+points(x = x.new[1,1], y = x.new[1,2], col = "red", pch = 16)
+text(x = x.new[1,1], y = x.new[1,2]+0.25, labels = "3")
+step3 <- data.frame(Prev.Length = convert.C.to.N(x = x.new[1,1], UH = 120, UL = 100), 
+                    Match.Score = convert.C.to.N(x = x.new[1,2], UH = 100, UL = 80))
+
+## Step 4: 
+x.old <- x.new
+x.new <- x.old - lambda*g
+points(x = x.new[1,1], y = x.new[1,2], col = "red", pch = 16)
+text(x = x.new[1,1], y = x.new[1,2]+0.25, labels = "4")
+step4 <- data.frame(Prev.Length = convert.C.to.N(x = x.new[1,1], UH = 120, UL = 100), 
+                    Match.Score = convert.C.to.N(x = x.new[1,2], UH = 100, UL = 80))
+
+## Step 5: 
+x.old <- x.new
+x.new <- x.old - lambda*g
+points(x = x.new[1,1], y = x.new[1,2], col = "red", pch = 16)
+text(x = x.new[1,1], y = x.new[1,2]+0.25, labels = "5")
+step5 <- data.frame(Prev.Length = convert.C.to.N(x = x.new[1,1], UH = 120, UL = 100), 
+                    Match.Score = convert.C.to.N(x = x.new[1,2], UH = 100, UL = 80))
+
+## Step 6: 
+x.old <- x.new
+x.new <- x.old - lambda*g
+points(x = x.new[1,1], y = x.new[1,2], col = "red", pch = 16)
+text(x = x.new[1,1], y = x.new[1,2]+0.25, labels = "6")
+step6 <- data.frame(Prev.Length = convert.C.to.N(x = x.new[1,1], UH = 120, UL = 100), 
+                    Match.Score = convert.C.to.N(x = x.new[1,2], UH = 100, UL = 80))
+
+## Step 7:
+x.old <- x.new
+x.new <- x.old - lambda*g
+points(x = x.new[1,1], y = x.new[1,2], col = "red", pch = 16)
+text(x = x.new[1,1], y = x.new[1,2]+0.25, labels = "7")
+step7 <- data.frame(Prev.Length = convert.C.to.N(x = x.new[1,1], UH = 120, UL = 100), 
+                    Match.Score = convert.C.to.N(x = x.new[1,2], UH = 100, UL = 80))
+
+## Step 8:
+x.old <- x.new
+x.new <- x.old - lambda*g
+points(x = x.new[1,1], y = x.new[1,2], col = "red", pch = 16)
+text(x = x.new[1,1], y = x.new[1,2]+0.25, labels = "8")
+step8 <- data.frame(Prev.Length = convert.C.to.N(x = x.new[1,1], UH = 120, UL = 100), 
+                    Match.Score = convert.C.to.N(x = x.new[1,2], UH = 100, UL = 80))
+
+## Step 9:
+x.old <- x.new
+x.new <- x.old - lambda*g
+points(x = x.new[1,1], y = x.new[1,2], col = "red", pch = 16)
+text(x = x.new[1,1], y = x.new[1,2]+0.25, labels = "9")
+step9 <- data.frame(Prev.Length = convert.C.to.N(x = x.new[1,1], UH = 120, UL = 100), 
+                    Match.Score = convert.C.to.N(x = x.new[1,2], UH = 100, UL = 80))
+
+## Step 10:
+x.old <- x.new
+x.new <- x.old - lambda*g
+points(x = x.new[1,1], y = x.new[1,2], col = "red", pch = 16)
+text(x = x.new[1,1], y = x.new[1,2]+0.25, labels = "10")
+step10 <- data.frame(Prev.Length = convert.C.to.N(x = x.new[1,1], UH = 120, UL = 100), 
+                    Match.Score = convert.C.to.N(x = x.new[1,2], UH = 100, UL = 80))
+
+## Step 11:
+x.old <- x.new
+x.new <- x.old - lambda*g
+points(x = x.new[1,1], y = x.new[1,2], col = "red", pch = 16)
+text(x = x.new[1,1], y = x.new[1,2]+0.25, labels = "11")
+step11 <- data.frame(Prev.Length = convert.C.to.N(x = x.new[1,1], UH = 120, UL = 100), 
+                    Match.Score = convert.C.to.N(x = x.new[1,2], UH = 100, UL = 80))
+
+## Step 12:
+x.old <- x.new
+x.new <- x.old - lambda*g
+points(x = x.new[1,1], y = x.new[1,2], col = "red", pch = 16)
+text(x = x.new[1,1], y = x.new[1,2]+0.25, labels = "12")
+step12 <- data.frame(Prev.Length = convert.C.to.N(x = x.new[1,1], UH = 120, UL = 100), 
+                    Match.Score = convert.C.to.N(x = x.new[1,2], UH = 100, UL = 80))
+
+## Step 13:
+x.old <- x.new
+x.new <- x.old - lambda*g
+points(x = x.new[1,1], y = x.new[1,2], col = "red", pch = 16)
+text(x = x.new[1,1], y = x.new[1,2]+0.25, labels = "13")
+step13 <- data.frame(Prev.Length = convert.C.to.N(x = x.new[1,1], UH = 120, UL = 100), 
+                    Match.Score = convert.C.to.N(x = x.new[1,2], UH = 100, UL = 80))
+
+## The following is a list of the conditions along the path of steepest descent
+pstd.cond <- data.frame(Step = 0:13, rbind(step0, step1, step2, step3, step4, step5, step6, 
+                                            step7, step8, step9, step10, step11, step12, step13))
+pstd.cond
+```
+
+```{r}
+pstd.cond$Match.Score <- round(pstd.cond$Match.Score)
+pstd.cond
+```
+
+```{r}
+pstd <- read.csv("../data/P2-phase2.csv", header = TRUE)
+pstd.TT <- pstd[pstd$Prev.Type == "TT",]
+pstd.means <- aggregate(pstd.TT$Browse.Time, 
+                        by = list(Prev.Length = pstd.TT$Prev.Length, 
+                                  Prev.Size = pstd.TT$Match.Score), 
+                        FUN = mean)
+
+plot(x = 0:3, y = pstd.means$x[1:4],
+     type = "l", xlab = "Step Number", ylab = "Average Browsing Time")
+points(x = 0:3, y = pstd.means$x[1:4],
+       col = "red", pch = 16)
+```
+100, 81
+105,95 -- 86,76
+
+
+
+```{r}
+head(pstd.cond)
+```
+
+```{r}
+## Load this data and check whether the pure quadratic effect is significant
+P2_PH3_TT <- read.csv("../data/P2-phase3-TT.csv", header = TRUE)
+P2_PH3_TT_2 <- read.csv("../data/P2-phase3-TT-2.csv", header = TRUE)
+temp <- rbind(P2_PH3_TT, P2_PH3_TT_2)
+P2_PH3_TT <- temp[temp$Match.Score != 85, ]
+
+P2_PH3_TT
+ph3.TT <- data.frame(y = P2_PH3_TT$Browse.Time,
+                  x1 = convert.N.to.C(U = P2_PH3_TT$Prev.Length, UH = 105, UL = 95),
+                  x2 = convert.N.to.C(U = P2_PH3_TT$Match.Score, UH = 86, UL = 76))
+ph3.TT$xPQ <- (ph3.TT$x1^2 + ph3.TT$x2^2)/2
+
+## Check the average browsing time in each condition:
+aggregate(ph3.TT$y, by = list(x1 = ph3.TT$x1, x2 = ph3.TT$x2), FUN = mean)
+
+## The difference in average browsing time in factorial conditions vs. the center 
+## point condition
+mean(ph3.TT$y[ph3.TT$xPQ != 0]) - mean(ph3.TT$y[ph3.TT$xPQ == 0])
+
+## Check to see if that's significant
+m <- lm(y~x1+x2+x1*x2+xPQ, data = ph3.TT)
+summary(m)
+```
+
+# AGAIN
+
+```{r}
+aggregate(ph3.TT$y, 
+          by = list(x1 = ph3.TT$x1, x2 = ph3.TT$x2), 
+          FUN = mean)
+
+```
+
+```{r}
+mean(ph3.TT$y[ph3.TT$xPQ != 0]) - mean(ph3.TT$y[ph3.TT$xPQ == 0])
+```
+
+```{r}
+m_TT <- lm(y~x1+x2+x1*x2+xPQ, data = ph3.TT)
+summary(m_TT)
+```
+
+```{r}
+m.TT.fo <- lm(y~x1+x2, data = ph3.TT)
+beta0 <- coef(m.TT.fo)[1]
+beta1 <- coef(m.TT.fo)[2]
+beta2 <- coef(m.TT.fo)[3]
+grd <- mesh(x = seq(convert.N.to.C(U = 50, UH = 105, UL = 95), 
+                    convert.N.to.C(U = 120, UH = 105, UL = 95), 
+                    length.out = 100), 
+            y = seq(convert.N.to.C(U = 50, UH = 86, UL = 76), 
+                    convert.N.to.C(U = 100, UH = 86, UL = 76), 
+                    length.out = 100))
+x1 <- grd$x
+x2 <- grd$y
+eta.fo <- beta0 + beta1*x1 + beta2*x2
+# 2D contour plot
+contour(x = seq(convert.N.to.C(U = 50, UH = 105, UL = 95), 
+                    convert.N.to.C(U = 120, UH = 105, UL = 95), 
+                    length.out = 100), 
+            y = seq(convert.N.to.C(U = 50, UH = 86, UL = 76), 
+                    convert.N.to.C(U = 100, UH = 86, UL = 76), 
+                    length.out = 100), 
+        z = eta.fo, xlab = "x1 (Preview Length)", ylab = "x2 (Match.Score)",
+        nlevels = 15, col = blue_palette(15), labcex = 0.9, asp=1)
+
+abline(a = 0, b = beta2/beta1, lty = 2)
+points(x = 0, y = 0, col = "red", pch = 16)
+```
+
+```{r}
+# The gradient vector
+g <- matrix(c(beta1, beta2), nrow = 1)
+
+# We will take steps of size 5 seconds in preview length. In coded units this is
+PL.step <- convert.N.to.C(U = 105, UH = 105, UL = 95)
+lambda <- PL.step/abs(beta1)
+```
+
+
+```{r}
+contour(x = seq(convert.N.to.C(U = 50, UH = 105, UL = 95), 
+                    convert.N.to.C(U = 120, UH = 105, UL = 95), 
+                    length.out = 100), 
+            y = seq(convert.N.to.C(U = 50, UH = 86, UL = 76), 
+                    convert.N.to.C(U = 100, UH = 86, UL = 76), 
+                    length.out = 100), 
+        z = eta.fo, xlab = "x1 (Preview Length)", ylab = "x2 (Match.Score)",
+        nlevels = 15, col = blue_palette(15), labcex = 0.9, asp=1)
+
+abline(a = 0, b = beta2/beta1, lty = 2)
+points(x = 0, y = 0, col = "red", pch = 16)
+
+## Step 0: The center point we've already observed
+x.old <- matrix(0, nrow=1, ncol=2)
+text(x = 0, y = 0+0.25, labels = "0")
+step0 <- data.frame(Prev.Length = convert.C.to.N(x = 0, UH = 105, UL = 95), 
+                 Match.Score = convert.C.to.N(x = 0, UH = 86, UL = 76))
+
+## Step 1: 
+x.new <- x.old - lambda*g
+points(x = x.new[1,1], y = x.new[1,2], col = "red", pch = 16)
+text(x = x.new[1,1], y = x.new[1,2]+0.25, labels = "1")
+step1 <- data.frame(Prev.Length = convert.C.to.N(x = x.new[1,1], UH = 105, UL = 95), 
+                    Match.Score = convert.C.to.N(x = x.new[1,2], UH = 86, UL = 76))
+
+## Step 2: 
+x.old <- x.new
+x.new <- x.old - lambda*g
+points(x = x.new[1,1], y = x.new[1,2], col = "red", pch = 16)
+text(x = x.new[1,1], y = x.new[1,2]+0.25, labels = "2")
+step2 <- data.frame(Prev.Length = convert.C.to.N(x = x.new[1,1], UH = 105, UL = 95), 
+                    Match.Score = convert.C.to.N(x = x.new[1,2], UH = 86, UL = 76))
+
+## Step 3: 
+x.old <- x.new
+x.new <- x.old - lambda*g
+points(x = x.new[1,1], y = x.new[1,2], col = "red", pch = 16)
+text(x = x.new[1,1], y = x.new[1,2]+0.25, labels = "3")
+step3 <- data.frame(Prev.Length = convert.C.to.N(x = x.new[1,1], UH = 105, UL = 95), 
+                    Match.Score = convert.C.to.N(x = x.new[1,2], UH = 86, UL = 76))
+
+## Step 4: 
+x.old <- x.new
+x.new <- x.old - lambda*g
+points(x = x.new[1,1], y = x.new[1,2], col = "red", pch = 16)
+text(x = x.new[1,1], y = x.new[1,2]+0.25, labels = "4")
+step4 <- data.frame(Prev.Length = convert.C.to.N(x = x.new[1,1], UH = 105, UL = 95), 
+                    Match.Score = convert.C.to.N(x = x.new[1,2], UH = 86, UL = 76))
+
+## Step 5: 
+x.old <- x.new
+x.new <- x.old - lambda*g
+points(x = x.new[1,1], y = x.new[1,2], col = "red", pch = 16)
+text(x = x.new[1,1], y = x.new[1,2]+0.25, labels = "5")
+step5 <- data.frame(Prev.Length = convert.C.to.N(x = x.new[1,1], UH = 105, UL = 95), 
+                    Match.Score = convert.C.to.N(x = x.new[1,2], UH = 86, UL = 76))
+
+## Step 6: 
+x.old <- x.new
+x.new <- x.old - lambda*g
+points(x = x.new[1,1], y = x.new[1,2], col = "red", pch = 16)
+text(x = x.new[1,1], y = x.new[1,2]+0.25, labels = "6")
+step6 <- data.frame(Prev.Length = convert.C.to.N(x = x.new[1,1], UH = 105, UL = 95), 
+                    Match.Score = convert.C.to.N(x = x.new[1,2], UH = 86, UL = 76))
+
+## Step 7:
+x.old <- x.new
+x.new <- x.old - lambda*g
+points(x = x.new[1,1], y = x.new[1,2], col = "red", pch = 16)
+text(x = x.new[1,1], y = x.new[1,2]+0.25, labels = "7")
+step7 <- data.frame(Prev.Length = convert.C.to.N(x = x.new[1,1], UH = 105, UL = 95), 
+                    Match.Score = convert.C.to.N(x = x.new[1,2], UH = 86, UL = 76))
+
+## The following is a list of the conditions along the path of steepest descent
+pstd.cond <- data.frame(Step = 0:7, rbind(step0, step1, step2, step3, step4, step5, step6, 
+                                            step7))
+pstd.cond$Match.Score <- round(pstd.cond$Match.Score)
+pstd.cond
+```
+
+```{r}
+pstd.means.old <- pstd.means
+pstd <- read.csv("../data/P2-phase4-TT.csv", header = TRUE)
+pstd.TT <- pstd[pstd$Prev.Type == "TT",]
+pstd.means <- aggregate(pstd.TT$Browse.Time, 
+                        by = list(Prev.Length = pstd.TT$Prev.Length, 
+                                  Prev.Size = pstd.TT$Match.Score), 
+                        FUN = mean)
+
+par(mfrow = c(1,2))
+plot(x = 0:3, y = pstd.means.old$x[1:4],
+     type = "l", xlab = "Step Number", ylab = "Average Browsing Time")
+points(x = 0:3, y = pstd.means.old$x[1:4],
+       col = "red", pch = 16)
+
+plot(x = 0:4, y = pstd.means$x[1:5],
+     type = "l", xlab = "Step Number", ylab = "Average Browsing Time")
+points(x = 0:4, y = pstd.means$x[1:5],
+       col = "red", pch = 16)
+
+
+```
+
+```{r}
+pstd.cond[pstd.cond$Step == 3,]
+pstd.cond
+```
+
+85--72
+95,75 -- 77,67
+
+first time:
+Prev.Length	Match.Score	Prev.Type
+90	75	TT
+80	75	TT
+90	69	TT
+80	69	TT
+85	72	TT
+
+second time:
+Prev.Length	Match.Score	Prev.Type
+95	77	TT
+75	77	TT
+95	67	TT
+75	67	TT
+85	72	TT
+
+Prev.Length	Match.Score	Prev.Type
+75	62	TT
+75	82	TT
+95	62	TT
+95	82	TT
+85	72	TT
+
+
+
+```{r}
+## Load this data and check whether the pure quadratic effect is significant
+P2_PH5_TT <- read.csv("../data/P2-phase5.555-TT.csv", header = TRUE)
+
+head(P2_PH5_TT)
+
+ph5.TT <- data.frame(y = P2_PH5_TT$Browse.Time,
+                  x1 = convert.N.to.C(U = P2_PH5_TT$Prev.Length, UH = 95, UL = 75),
+                  x2 = convert.N.to.C(U = P2_PH5_TT$Match.Score, UH = 82, UL = 62))
+
+ph5.TT$xPQ <- (ph5.TT$x1^2 + ph5.TT$x2^2)/2
+
+## Check the average browsing time in each condition:
+aggregate(ph5.TT$y, by = list(x1 = ph5.TT$x1, x2 = ph5.TT$x2), FUN = mean)
+
+## The difference in average browsing time in factorial conditions vs. the center 
+## point condition
+mean(ph5.TT$y[ph5.TT$xPQ != 0]) - mean(ph5.TT$y[ph5.TT$xPQ == 0])
+
+## Check to see if that's significant
+m <- lm(y~x1+x2+x1*x2+xPQ, data = ph5.TT)
+summary(m)
+```
+
+In each condition, we used the Method of Steepest Descent. We used a $2^2$ factorial experiment to estimate a first-order response surface: 
+$$
+\widehat{\eta}=\widehat{\beta}_{0}+\widehat{\beta}_{1} x_{1}+\widehat{\beta}_{2} x_{2}
+$$
+
+The gradient of this surface is then calculated: 
+$$
+\mathrm{g}=\nabla \widehat{\eta}=\left[\begin{array}{cccc}
+\frac{\partial \hat{\eta}}{\partial x_{1}} & \frac{\partial \hat{\eta}}{\partial x_{2}}
+\end{array}\right]^{T}
+$$
